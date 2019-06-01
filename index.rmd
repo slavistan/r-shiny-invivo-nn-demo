@@ -28,7 +28,7 @@ library(keras)
 library(shiny)
 library(tidyverse)
 mnist <- dataset_mnist()
-
+ 
 # Define method to draw mnist images. 'image' rotates the image by 90d for whatever reason.
 rotate <- function(x) t(apply(x, 2, rev))
 draw.pixmap <- function(mat) { image(rotate(mat), col=gray.colors(256, 0.0, 1.0), axes=FALSE) }
