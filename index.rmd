@@ -123,7 +123,8 @@ shinyApp(ui = ui, server = server)
 
 ```
 
-```{r keras-test-1}
+<!-- visualize training progress using a shiny app. -->
+```{r keras-test-1, echo=FALSE}
 
 # set up model layers
 model <- keras_model_sequential(name="MNIST Classifier") %>%
@@ -136,12 +137,7 @@ model <- keras_model_sequential(name="MNIST Classifier") %>%
 model %>% compile(loss = 'categorical_crossentropy',
                   metrics = 'accuracy',
                   optimizer = optimizer_rmsprop())
-summary(model)
-```
-```{r keras-test-2, echo=FALSE}
 
-increment <- 1        # number of epochs to train per run
-current.epoch <- -1   # index tracking total number of epochs trained
 accuracy <- numeric() # vector of accuracies obtained after each epoch
 
 # Define user interface
@@ -149,68 +145,93 @@ ui.training <-
   fluidPage(
     fluidRow(
       column(4, align="center",
-        actionButton("my.button", label="Train another epoch"),
-        br(),
-        h1(textOutput("print.counter"))
+        sliderInput("increment", label="Numer of Epochs to Train", value=1, min=1, max=32, step=1),
+        actionButton("run.button", label="Run Training", width="100%"),
+        br(), br(),
+        actionButton("reset.button", label="Reset Model", width="100%"),
+        h1(textOutput("epoch.counter"))
       ),
-      column(6, align="center",
-        plotOutput("plot.history")
+      column(6, align="center", plotOutput("plot.history")
       )
     )
   )
 
+# define reactive outputs
 server.training <- function(input, output){
 
-  output$print.counter <- renderText({
-    input$my.button
+  # create container for reactive objects. Values will be intialized on-demand
+  params <- reactiveValues(current.epoch = NA)
 
-    # HACK: Oox of print.counter and plot.history is not defined.
-    #       Currently, print.counter seems to evaluate current.epoch before it's incremented in plot.history.
-    #       Define a proper order of execution once a suitable mechanism is discovered.
-    return(current.epoch + 1)
+  # epoch counter
+  output$epoch.counter <- renderText({
+
+    # Print the current epoch. The value is retrieved from a reactive variable and thus updates by itself. No
+    # explicit dependency on the button is required.
+    return(params$current.epoch)
   })
 
+  # training history plot
   output$plot.history <- renderPlot({
-    input$my.button
 
-    plt <- ggplot() +
-             scale_y_log10(limits=c(0.10,1)) +
+    # create an explicit dependecy on the button. This will cause this output to rendered whenver the button is
+    # pressed.
+    input$run.button
+
+    # set up plot skeleton and initialize values if this is the initial run.
+    plt <- ggplot()                             +
+             scale_y_log10(limits=c(0.10,1))    +
              scale_x_continuous(limits=c(0,32)) +
              labs(x = "Epoch", y = "Accuracy")
-
-    if ( current.epoch == -1 ){
-      current.epoch <<- 0
+    if(is.na(isolate(params$current.epoch))){
+      params$current.epoch <- 0
       return(plt)
     }
   
-    withProgress(message = 'Making plot', value = 0, {
-      for (ii in 1:increment)
-      {
+    # run the actual training within a progress environment
+    withProgress(message = 'Training ...', value = 0, {
+
+      # 'isolate' causes no dependency to be created between the input and its consuming output. Otherwise,
+      # every change to the input field would cause a re-rendering of the output. We just want to render
+      # the plot when the button is pressed.
+      increment <- isolate(input$increment)
+
+      # perform training for the specified number of epochs. We use a loop to obtain explicit control over the
+      # progress of the training.
+      for (ii in 1:increment){
+
+        # run an epoch of training
         training.history <- model %>% fit(x.train, y.train,
                                          initial_epoch = current.epoch,
-                                         epochs = current.epoch + increment)
-        print(paste0("train_hist =", training.history$metrics))
+                                         epochs = current.epoch + 1)
 
+        # append resulting accuracy
         accuracy <<- c(accuracy, training.history$metrics$accuracy)
 
-        incProgress(1/increment, detail = paste("Doing part", ii))
+        # display progress bar
+        incProgress(1/increment, detail = paste0("Training epoch ", ii, "/", increment))
       }
     })
-    plt <- plt + geom_point(aes(x = 1:current.epoch, y = accuracy))
 
-    # increment epoch counter
-    current.epoch <<- current.epoch+increment
+    # draw the data onto the frame created above
+    plt <- plt + geom_point(aes(x = 1:isolate(params$current.epoch), y = accuracy))
+
+    # increment the epoch counter. We avoid a dependency on the parameter by wrapping the read access in the
+    # 'isolate' environment (omitting this would cause infinite recursion). Write accesses don't create dependencies,
+    # hence the LHS of the assignment needs no 'isolate'.
+    params$current.epoch <- isolate(params$current.epoch) + increment
+
     return(plt)
  })
 }
 
-# perform fit
+# run the app
+shinyApp(ui = ui.training, server = server.training)
 
+# TODO: Display false positives
 #model %>% evaluate(x.test, y.test)
 
 # Check out false positives
 #predictions <- model %>% predict_classes(x.test)
-shinyApp(ui = ui.training, server = server.training)
 ```
 
 # Tensorflow Übersicht 
