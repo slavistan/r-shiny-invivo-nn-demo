@@ -9,39 +9,6 @@ setlocal fml=1
 setlocal fdn=20
 setlocal fen
 silent! normal! zE
-17,41fold
-43,65fold
-70,77fold
-79,83fold
-85,89fold
-91,95fold
-97,118fold
-67,119fold
-121,122fold
-14,124fold
-130,144fold
-172,178fold
-146,242fold
-146,242fold
-244,245fold
-14
-normal! zo
-43
-normal! zo
-67
-normal! zo
-67
-normal! zc
-130
-normal! zo
-146
-normal! zo
-146
-normal! zo
-146
-normal! zc
-146
-normal! zc
 let &so = s:so_save | let &siso = s:siso_save
 doautoall SessionLoadPost
 " vim: set ft=vim :

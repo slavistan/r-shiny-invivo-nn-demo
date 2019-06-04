@@ -1,5 +1,5 @@
 ---
-title: ""
+title: "Davinci"
 runtime: shiny
 output:
     html_document:
@@ -126,19 +126,12 @@ shinyApp(ui = ui, server = server)
 <!-- visualize training progress using a shiny app. -->
 ```{r keras-test-1, echo=FALSE}
 
-# set up model layers
-model <- keras_model_sequential(name="MNIST Classifier") %>%
-          layer_dense(units=256, activation='relu', input_shape=c(784), name="Input-Layer") %>%
-          layer_dropout(rate=0.4, name="H1") %>%
-          layer_dense(units=128, activation='relu', name="H2") %>%
-          layer_dropout(rate=0.3, name="H3") %>%
-          layer_dense(units=10, activation='softmax', name="Output-Layer")
-# define loss function and optimizer ('compile' the model)
-model %>% compile(loss = 'categorical_crossentropy',
-                  metrics = 'accuracy',
-                  optimizer = optimizer_rmsprop())
+# Debugging log wrapper
+debug.log <- function(...) {
 
-accuracy <- numeric() # vector of accuracies obtained after each epoch
+  # Red & bold
+  cat("\033[1;31m", ..., "\033[0m")
+}
 
 # Define user interface
 ui.training <-
@@ -159,8 +152,28 @@ ui.training <-
 # define reactive outputs
 server.training <- function(input, output){
 
+  initialize_model <- function() {
+
+    # set up model layers
+    model <- keras_model_sequential(name="MNIST Classifier") %>%
+              layer_dense(units=256, activation='relu', input_shape=c(784), name="Input-Layer") %>%
+              layer_dropout(rate=0.4, name="H1") %>%
+              layer_dense(units=128, activation='relu', name="H2") %>%
+              layer_dropout(rate=0.3, name="H3") %>%
+              layer_dense(units=10, activation='softmax', name="Output-Layer")
+    # define loss function and optimizer ('compile' the model)
+    model %>% compile(loss = 'categorical_crossentropy',
+                      metrics = 'accuracy',
+                      optimizer = optimizer_rmsprop())
+
+    return(model)
+  }
+
+  accuracy <- numeric() # vector of accuracies obtained after each epoch
+
   # create container for reactive objects. Values will be intialized on-demand
-  params <- reactiveValues(current.epoch = NA)
+  params <- reactiveValues(current.epoch = NA,
+                           model = initialize_model())
 
   # epoch counter
   output$epoch.counter <- renderText({
@@ -168,6 +181,15 @@ server.training <- function(input, output){
     # Print the current epoch. The value is retrieved from a reactive variable and thus updates by itself. No
     # explicit dependency on the button is required.
     return(params$current.epoch)
+  })
+
+  # 'reset.button' callback: Reset model and associated variables
+  observeEvent(input$reset.button, {
+
+    debug.log("Reset button pressed\n")
+    params$model <- initialize_model()
+    params$current.epoch <- NA
+    accuracy <<- numeric()
   })
 
   # training history plot
@@ -193,16 +215,21 @@ server.training <- function(input, output){
       # 'isolate' causes no dependency to be created between the input and its consuming output. Otherwise,
       # every change to the input field would cause a re-rendering of the output. We just want to render
       # the plot when the button is pressed.
-      increment <- isolate(input$increment)
+      increment     <- isolate(input$increment)
+      current.epoch <- isolate(params$current.epoch)
 
       # perform training for the specified number of epochs. We use a loop to obtain explicit control over the
       # progress of the training.
       for (ii in 1:increment){
 
         # run an epoch of training
-        training.history <- model %>% fit(x.train, y.train,
-                                         initial_epoch = current.epoch,
-                                         epochs = current.epoch + 1)
+        training.history <- fit(params$model, x.train, y.train,
+                                initial_epoch = current.epoch,
+                                epochs = current.epoch + 1,
+                                batch_size = 10000)
+
+        # Increment epoch
+        current.epoch = current.epoch + 1
 
         # append resulting accuracy
         accuracy <<- c(accuracy, training.history$metrics$accuracy)
@@ -213,7 +240,7 @@ server.training <- function(input, output){
     })
 
     # draw the data onto the frame created above
-    plt <- plt + geom_point(aes(x = 1:isolate(params$current.epoch), y = accuracy))
+    plt <- plt + geom_point(aes(x = 1:current.epoch, y = accuracy))
 
     # increment the epoch counter. We avoid a dependency on the parameter by wrapping the read access in the
     # 'isolate' environment (omitting this would cause infinite recursion). Write accesses don't create dependencies,
