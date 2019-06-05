@@ -19,29 +19,39 @@ silent! normal! zE
 67,119fold
 121,122fold
 14,124fold
-130,144fold
-172,178fold
-146,242fold
-146,242fold
-244,245fold
+136,157fold
+162,178fold
+180,181fold
+183,235fold
+237,272fold
+237,272fold
+274,280fold
+282,287fold
+289,294fold
+159,295fold
+159,295fold
+297,298fold
+126,305fold
 14
 normal! zo
-43
-normal! zo
 67
 normal! zo
 67
 normal! zc
-130
-normal! zo
-146
-normal! zo
-146
-normal! zo
-146
+14
 normal! zc
-146
-normal! zc
+126
+normal! zo
+136
+normal! zo
+159
+normal! zo
+159
+normal! zo
+237
+normal! zo
+237
+normal! zo
 let &so = s:so_save | let &siso = s:siso_save
 doautoall SessionLoadPost
 " vim: set ft=vim :
