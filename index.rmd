@@ -42,24 +42,16 @@ draw.pixmap <- function(pixels) {
 
 # Define user interface
 ui <- fluidPage(
-
   fluidRow(
-    column(4, align="center",
-      splitLayout(cellWidths = c("85%", "15%"),
-        sliderInput('test.index', label='Test sample', min=1, max=10000, value=1, width="90%"),
-        code(textOutput(outputId = 'label.test'))
-      ),
+    column(4, offset=2, align="center",
+      sliderInput('test.index', label='Test Set', min=1, max=10000, value=1000),
+      strong(textOutput(outputId = 'label.test')),
       plotOutput(outputId = 'image.test')
     ),
     column(4, align="center",
-      splitLayout(cellWidths = c("85%", "15%"),
-        sliderInput('train.index', label='Training sample', min=1, max=60000, value=1, width="90%"),
-        code(textOutput(outputId = 'label.train'))
-      ),
+      sliderInput('train.index', label='Training Set', min=1, max=60000, value=8400),
+      strong(textOutput(outputId = 'label.train')),
       plotOutput(outputId = 'image.train')
-    ),
-    column(4, align="center",
-      plotOutput(outputId = 'mnist.numbers.barchart')
     )
   )
 )
@@ -74,47 +66,24 @@ server <- function(input, output) {
 
     # information can be passed explicitly via a list
     list(src = img.out)
-  }, width = 140, height = 140 )
+  }, width = 200, height = 200 )
   
   # Pixmap of training image
   output$image.train <- renderPlot({
 
     draw.pixmap(x.train[input$train.index,])
-  }, width = 140, height = 140)
+  }, width = 200, height = 200)
 
   # Label of test image
   output$label.test <- renderText({
 
-    mnist$test$y[[input$test.index]]
+    return(paste0("Label: ", mnist$test$y[[input$test.index]]))
   })
 
   # Label of training image
   output$label.train <- renderText({
 
-    mnist$train$y[[input$train.index]]
-  })
-
-  # Barchart of the number's distributions in the MNIST dataset
-  output$mnist.numbers.barchart <- renderPlot({
-
-    my.df <- bind_rows(tibble(labels=mnist$test$y), 
-                       tibble(labels=mnist$train$y),
-                       .id="Group") %>%
-             mutate(Group=case_when(Group=="1" ~ "test", TRUE ~ "training")) %>%
-             mutate(Group=factor(Group), labels=as.integer(labels))
-
-    ggplot(my.df) +
-      geom_bar(aes(x=labels, y=..prop.., fill=Group, color=Group), position="dodge") +
-      # must create xlabels manually as I cannot declare labels as factors (bugs). See
-      # https://stackoverflow.com/questions/56360383/geom-bar-changes-behavior-when-variable-is-factor
-      scale_x_continuous(breaks=0:9, labels=as.character(0:9)) +
-      scale_y_continuous(breaks=c()) +
-      labs(x = "", y = "Proportion (rel.)", title = "Distribution of numbers in MNIST") +
-      theme(legend.position=c(0.95, 0.05),
-            legend.justification=c("right","bottom"),
-            legend.background=element_rect(color=1),
-            plot.title=element_text(hjust = 0.5)
-      )
+    return(paste0("Label: ", mnist$train$y[[input$train.index]]))
   })
 }
 
@@ -141,14 +110,18 @@ ui.training <-
   fluidPage(
     fluidRow(
       column(4, align="center",
-        sliderInput("epoch.increment", label="Numer of Epochs to Train", value=16, min=1, max=128, step=1),
+        sliderInput("epoch.increment", label="Numer of Epochs to Train", value=16, min=1, max=64, step=1),
         splitLayout(cellWidths=c("65%", "35%"),
-          actionButton("run.button", label="Run Training", width="100%"),
-          actionButton("reset.button", label="Reset", width="100%")
+          actionButton("reset.button", label="Reset + Run", width="100%"),
+          actionButton("run.button", label="Run", width="100%")
         ),
+        br(),
+        splitLayout(
+          h5("Hidden neurons: ", style="padding-bottom: -10px;"),
+          numericInput("hl.size", label=NULL, min=1, max=128, step=1, value=3)),
         # TODO: Properly concatenate the static prefix and the dynamic counter value
         h4(textOutput("epoch.counter")),
-        br(), br(),
+        br(),
         radioButtons("plot.choice", label="Display", choices=list("Accuracy", "Loss"), inline=TRUE),
         radioButtons("geom.plot.option", label=NULL, choices=list("Point", "Line"), inline=T),
         checkboxInput("show.train.acc.option", label="Show training set history", value=T)
@@ -166,7 +139,7 @@ server.training <- function(input, output){
 
     # set up model layers
     model <- keras_model_sequential(name="MNIST Classifier") %>%
-              layer_dense(units=3, activation='relu', input_shape=c(784), name="Hidden-Layer") %>%
+              layer_dense(units=input$hl.size, activation='relu', input_shape=c(784), name="Hidden-Layer") %>%
               layer_dense(units=10, activation='softmax', name="Output-Layer")
     # define loss function and optimizer ('compile' the model)
     model %>% compile(loss = 'categorical_crossentropy',
@@ -305,7 +278,7 @@ server.training <- function(input, output){
     acc.plot <- acc.plot +
       geom_label_repel(data = (acc.hist %>% filter (Set == "Validation") %>%
                                mutate(MaxLabel = if_else(Accuracy == max(Accuracy), hist.max.label, ""))), 
-                       aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = 0.3, arrow = arrow(length = unit(0.02, "npc")),
+                       aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = -0.3, arrow = arrow(length = unit(0.02, "npc")),
                       label.size = 0.25,)
 
     if(input$show.train.acc.option)
@@ -384,3 +357,23 @@ shinyApp(ui = ui.training, server = server.training)
     * VDesktop Wechsel braucht 100 Zeilen AHK Code.
     * Keine Automatische Paketverwaltung
     * *Downloader*-Programme
+
+```{r}
+my.df <- bind_rows(tibble(labels=mnist$test$y), 
+                       tibble(labels=mnist$train$y),
+                       .id="Group") %>%
+             mutate(Group=case_when(Group=="1" ~ "test", TRUE ~ "training")) %>%
+             mutate(Group=factor(Group), labels=as.integer(labels))
+
+    ggplot(my.df) +
+      geom_bar(aes(x=labels, y=..prop.., fill=Group, color=Group), position="dodge") +
+      # must create xlabels manually as I cannot declare labels as factors (bugs). See
+      # https://stackoverflow.com/questions/56360383/geom-bar-changes-behavior-when-variable-is-factor
+      scale_x_continuous(breaks=0:9, labels=as.character(0:9)) +
+      scale_y_continuous(breaks=c()) +
+      labs(x = "", y = "Proportion (rel.)", title = "Distribution of numbers in MNIST") +
+      theme(legend.position=c(0.95, 0.05),
+            legend.justification=c("right","bottom"),
+            legend.background=element_rect(color=1),
+            plot.title=element_text(hjust = 0.5))
+```

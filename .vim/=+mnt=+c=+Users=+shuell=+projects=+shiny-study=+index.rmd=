@@ -10,53 +10,52 @@ setlocal fdn=20
 setlocal fen
 silent! normal! zE
 17,41fold
-43,65fold
-70,77fold
-79,83fold
-85,89fold
-91,95fold
-97,118fold
-67,119fold
-121,122fold
-14,124fold
-136,157fold
-162,178fold
-180,181fold
-183,235fold
-237,272fold
-237,272fold
-274,280fold
-282,287fold
-289,294fold
-159,295fold
-159,295fold
-297,298fold
-126,305fold
+43,57fold
+62,69fold
+71,75fold
+77,81fold
+83,87fold
+59,88fold
+90,91fold
+14,93fold
+108,132fold
+137,150fold
+152,153fold
+155,203fold
+205,292fold
+205,292fold
+294,300fold
+302,307fold
+309,314fold
+134,315fold
+134,315fold
+317,318fold
+95,325fold
 14
 normal! zo
-67
+43
 normal! zo
-67
+59
+normal! zo
+62
+normal! zo
+71
+normal! zo
+77
+normal! zo
+83
+normal! zo
+95
+normal! zo
+134
+normal! zo
+134
+normal! zo
+205
+normal! zo
+134
 normal! zc
-14
-normal! zc
-126
-normal! zo
-136
-normal! zo
-159
-normal! zo
-159
-normal! zo
-237
-normal! zo
-237
-normal! zc
-159
-normal! zc
-159
-normal! zc
-126
+95
 normal! zc
 let &so = s:so_save | let &siso = s:siso_save
 doautoall SessionLoadPost
