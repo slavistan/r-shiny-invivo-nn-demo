@@ -1,379 +1,59 @@
 ---
-title: "Davinci"
-runtime: shiny
-output:
-    html_document:
-        highlight: espresso
+title: "DaVinci Team Meeting"
+output: xaringan::moon_reader
 ---
+
+<style>
+  .inverse {
+    background-color: #272822;
+    color: #d6d6d6;
+    text-shadow: 0 0 20px #333;
+}
+</style>
+
+---
+
+# Live Machine Learning
+
+ Live mL
+
+---
+
+class: center, inverse
+background-image: url("assets/vitruvian-man-icon.png")
+
+## In-vivo Neural Networks Demo 
 
 <div align="center">
   <img src="https://upload.wikimedia.org/wikipedia/commons/2/2d/Vitruvian-Icon-Gray.png" style="height:120px;padding:10px"/>
   <img src="https://www.js-soft.com/assets/template_img/js-soft.png" style="height:90px;padding:10px"/>
 </div>
 
-<!-- visualize the MNIST dataset using a shiny app -->
-```{r visualizing-mnist, echo=FALSE, message=FALSE, warning=FALSE}
-
-# Setup data, variables and functions
-library(knitr)
-library(keras)
-library(shiny)
-library(tidyverse)
-mnist <- dataset_mnist()
- 
-# Normalize and flatten 28x28 images using row-major layout (which is used by tensorflow)
-x.train <- array_reshape(mnist$train$x, c(nrow(mnist$train$x), 784)) / 255
-x.test <- array_reshape(mnist$test$x, c(nrow(mnist$test$x), 784)) / 255
-
-# one-hot-encode labels
-y.train <- to_categorical(mnist$train$y, 10)
-y.test <- to_categorical(mnist$test$y, 10)
-
-# Define method to draw mnist images.
-draw.pixmap <- function(pixels) {
-                y_ <- c()
-                for (ii in 28:1) { y_ <- c(y_, rep(ii, 28)) }
-                ggplot() +
-                  geom_raster(aes(x = rep(1:28, 28), y = y_, fill = pixels)) +
-                  coord_cartesian(xlim=c(1,28), ylim=c(1,28)) +
-                  theme_void() +
-                  theme(legend.position="none")
-                }
-
-# Define user interface
-ui <- fluidPage(
-  fluidRow(
-    column(4, offset=2, align="center",
-      sliderInput('test.index', label='Test Set', min=1, max=10000, value=1000),
-      strong(textOutput(outputId = 'label.test')),
-      plotOutput(outputId = 'image.test')
-    ),
-    column(4, align="center",
-      sliderInput('train.index', label='Training Set', min=1, max=60000, value=8400),
-      strong(textOutput(outputId = 'label.train')),
-      plotOutput(outputId = 'image.train')
-    )
-  )
-)
-
-# Define reactive outputs
-server <- function(input, output) {
-
-  # Pixmap of test image
-  output$image.test <- renderPlot({
-
-    img.out <- draw.pixmap(x.test[input$test.index,])
-
-    # information can be passed explicitly via a list
-    list(src = img.out)
-  }, width = 200, height = 200 )
-  
-  # Pixmap of training image
-  output$image.train <- renderPlot({
-
-    draw.pixmap(x.train[input$train.index,])
-  }, width = 200, height = 200)
-
-  # Label of test image
-  output$label.test <- renderText({
-
-    return(paste0("Label: ", mnist$test$y[[input$test.index]]))
-  })
-
-  # Label of training image
-  output$label.train <- renderText({
-
-    return(paste0("Label: ", mnist$train$y[[input$train.index]]))
-  })
-}
-
-# Run the app
-shinyApp(ui = ui, server = server)
-
-```
-
-<!-- visualize training progress using a shiny app. -->
-```{r keras-test-1, echo=FALSE}
-library(gridExtra)
-library(gghighlight)
-library(ggrepel)
-
-# Debugging log wrapper
-debug.log <- function(...) {
-
-  # Green & bold
-  cat("\033[38;2;0;255;0m", ..., "\033[39;49m")
-}
-
-# Define user interface
-ui.training <-
-  fluidPage(
-    fluidRow(
-      column(4, align="center",
-        sliderInput("epoch.increment", label="Numer of Epochs to Train", value=16, min=1, max=64, step=1),
-        splitLayout(cellWidths=c("65%", "35%"),
-          actionButton("reset.button", label="Reset + Run", width="100%"),
-          actionButton("run.button", label="Run", width="100%")
-        ),
-        br(),
-        splitLayout(
-          h5("Hidden neurons: ", style="padding-bottom: -10px;"),
-          numericInput("hl.size", label=NULL, min=1, max=128, step=1, value=3)),
-        # TODO: Properly concatenate the static prefix and the dynamic counter value
-        h4(textOutput("epoch.counter")),
-        br(),
-        radioButtons("plot.choice", label="Display", choices=list("Accuracy", "Loss"), inline=TRUE),
-        radioButtons("geom.plot.option", label=NULL, choices=list("Point", "Line"), inline=T),
-        checkboxInput("show.train.acc.option", label="Show training set history", value=T)
-      ),
-      column(8, align="center", plotOutput("plot.history")
-      )
-    )
-  )
-
-# define reactive outputs
-server.training <- function(input, output){
-
-  # define function to (re-)initialize model
-  initialize_model <- function() {
-
-    # set up model layers
-    model <- keras_model_sequential(name="MNIST Classifier") %>%
-              layer_dense(units=input$hl.size, activation='relu', input_shape=c(784), name="Hidden-Layer") %>%
-              layer_dense(units=10, activation='softmax', name="Output-Layer")
-    # define loss function and optimizer ('compile' the model)
-    model %>% compile(loss = 'categorical_crossentropy',
-                      metrics = c('accuracy'),
-                      optimizer = optimizer_rmsprop())
-
-    return(model)
-  }
-
-  # define reactive parameters
-  params = reactiveValues(epoch.counter = 0)
-
-  # define reactive function performing training and returning training history as wide-format tibble.
-  training_history <- eventReactive(params$epoch.counter, {
-
-    if(params$epoch.counter == 0){
-
-      # we use static variables which are incrementally changed with each function call. Unfortunately R does not have
-      # function-scope static variables hence we're forced to use globals.
-      m. <<- initialize_model() # our model
-      h. <<- tibble()           # training history
-      epoch.counter.prev. <<- 0 # prev value of the epoch.counter
-
-      return(h.)
-    }
-
-    # perform trainig. Note that the model is mutated by 'fit()'
-    fit.result <- fit(m., x.train, y.train,
-                      initial_epoch = epoch.counter.prev.,
-                      epochs = params$epoch.counter,
-                      validation_split = 0.2,
-                      batch_size = 12000)
-
-
-    # append newly gathered values. The column names are deducted automatically
-    dh <- fit.result$metrics %>% as_tibble
-    h. <<- bind_rows(h., dh)
-
-    epoch.counter.prev. <<- params$epoch.counter
-
-    return(h.)
-    # run the actual training within a progress environmente
-    # withProgress(message = 'Training ...', value = 0, {
-
-
-    #   # perform training for the specified number of epochs. We use a loop to obtain explicit control over the
-    #   # progress of the training.
-    #   for (ii in 1:epoch.increment){
-
-    #     # run an epoch of training
-    #     training.hist <- fit(params$model, x.train, y.train,
-    #                             initial_epoch = current.epoch,
-    #                             epochs = current.epoch + 1,
-    #                             batch_size = 10000)
-
-
-    #     # display progress bar
-    #     incProgress(1/epoch.increment, detail = paste0("Training epoch ", ii, "/", epoch.increment))
-    #   }
-    # })
-  })
-
-  # render training history plot
-  output$plot.history <- renderPlot({
-    debug.log("output$plot.history called\n")
-
-    # Create explicit dependency to the function performing the model's training. The input format is expected to be
-    # a wide-format tibble consisting of all the metrics to be displayed.
-    training.hist <- training_history()
-
-    if(nrow(training.hist) == 0) {
-      # HACK: Increment epoch count to start training immediately
-      # TODO: Remove this before deployment
-      params$epoch.counter <- isolate(params$epoch.counter) + isolate(input$epoch.increment)
-
-      return(ggplot() +
-               theme(axis.title = element_blank(),
-                     axis.text  = element_blank(),
-                     axis.ticks = element_blank()) +
-               annotate("text", x = 0, y = 0, label = " ", size = 13))
-    }
-
-    # Create separate dataframes for losses and accuracies
-    loss.hist <- training.hist %>%
-      select(contains("loss")) %>%
-      mutate(Epoch = 1:nrow(training.hist)) %>%
-      gather(key = "Set", value = "Loss", -Epoch) %>%
-      mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
-
-    acc.hist <- training.hist %>%
-      select(contains("acc")) %>%
-      mutate(Epoch = 1:nrow(training.hist)) %>%
-      gather(key = "Set", value = "Accuracy", -Epoch) %>%
-      mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
-
-    # configure plot outputs respecting the user's choices
-    geom <- ifelse(input$geom.plot.option == "Line", geom_line, geom_point)
-    loss.plot <- ggplot(loss.hist) +
-      geom(aes(x = Epoch, y = Loss, color = Set))
-
-    if(input$show.train.acc.option == F) 
-      acc.hist <- acc.hist %>% filter(Set == "Validation")
-
-    acc.plot <- ggplot(acc.hist, aes(x = Epoch, y = Accuracy)) +
-      geom(aes(x = Epoch, y = Accuracy, color = Set)) +
-        scale_y_log10(limits = c(0.01, 1.0),
-                      labels = function(x) { return(scales::percent(x,suffix="%", accuracy=1)) },
-                      breaks = c(0.01,0.1,1),
-                      minor_breaks=c(seq(0.01,0.09,0.01), seq(0.1,1.0,0.1))) +
-        scale_x_continuous(limits = c(1, NA),
-                           labels = scales::number,
-                           breaks = c(1, max(acc.hist$Epoch), seq(10, 100, 10)),
-                           minor_breaks=1:max(acc.hist$Epoch)) +
-        labs(title = "Prediction Accuracy") +
-        theme(axis.text.y = element_text(face = "plain", size=12, angle = 45, margin = margin(r = 10)),
-              axis.title.y = element_blank(),
-              axis.text.x = element_text(size=12),
-              axis.title.x = element_text(size=14),
-              plot.title = element_text(size=16, face="bold", hjust=0.5),
-              legend.text = element_text(size=12, face="italic"),
-              legend.title = element_text(size=12, face="bold.italic", hjust=0.5),
-              legend.justification = c(1, 0),
-              legend.position = c(0.98,0.02),
-              legend.background = element_rect(fill = "gray98", color = "black", size = 0.1)) +
-        scale_color_manual(values = c("blue"))
-
-    # display the maximum accuracy
-    # retrieve maximum accuracy
-    hist.max <- acc.hist %>%
-      filter(Set == "Validation") %>%
-      filter(Accuracy == max(Accuracy)) %>%
-      select(c(Epoch, Accuracy)) %>%
-      filter(row_number() == 1)
-
-    hist.max.label <- paste0("Maximum (", scales::percent(hist.max$Accuracy), ")\nat epoch ", hist.max$Epoch)
-    acc.plot <- acc.plot +
-      geom_label_repel(data = (acc.hist %>% filter (Set == "Validation") %>%
-                               mutate(MaxLabel = if_else(Accuracy == max(Accuracy), hist.max.label, ""))), 
-                       aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = -0.3, arrow = arrow(length = unit(0.02, "npc")),
-                      label.size = 0.25,)
-
-    if(input$show.train.acc.option)
-      acc.plot <- acc.plot +
-        scale_color_manual(values = c("orange", "blue"))
-
-    if(input$plot.choice == "Loss") return(loss.plot)
-    else return(acc.plot)
-
-    return(result.plot)
-  })
-
-  # render epoch counter
-  output$epoch.counter <- renderText({
-
-    # Print the current epoch. The value is retrieved from a reactive variable and thus updates by itself. No
-    # explicit dependency on the button is required.
-    return(paste0("Epochs trained: ", params$epoch.counter))
-  })
-
-  # 'reset.button' callback: Reset epoch counter
-  observeEvent(input$reset.button, {
-    debug.log("reset.button pressed\n")
-
-    params$epoch.counter = 0
-  })
-
-  # 'run.button' callback: Increment epoch counter
-  observeEvent(input$run.button, {
-    debug.log("run.button pressed\n")
-
-    params$epoch.counter <- params$epoch.counter + input$epoch.increment
-  })
-}
-
-# run the app
-shinyApp(ui = ui.training, server = server.training)
-
-# TODO: Display false positives
-#model %>% evaluate(x.test, y.test)
-
-# Check out false positives
-#predictions <- model %>% predict_classes(x.test)
-```
-
-# Tensorflow Übersicht 
-
-* Generische Bibliothek für *datenstromorientierte Numerik*
-  + kann für ML & NN verwendet werden
-* Hardware-agnostisch (CPU/GPU/ASIC)
-* Viele Schnittstellen zu C++-Runtime (Python et al.)
-* Out-of-Core fähig (!)
-* Open-Source (!)
-  + *'Macht-was-ihr-wollt'* Lizens (Apache)
-* Sehr umfangreich u. flexibel
-
-
-## TensorFlow Interfaces
-
-* TF Core API: Low-Level TF Interface ('Bare Metal')
-  + Direkte Manipulation des TF-Graphen
-  + manuelle Entwicklung v. Frameworks/Tools
-* Keras API:  High-Level TF API für NN
-  + Zusammensetzen vordefinierter Layer-Typen
-* Estimator API: High-Level TF API für klassisches ML
-
-## Material
-
-[Machine Learning with R and Tensorflow](https://www.youtube.com/watch?v=atiYXm7JZv0)
-[keras - Deep Learning in R](https://www.datacamp.com/community/tutorials/keras-r-deep-learning)
-
-## Quarantäne
-
-* Gute Entwicklungsumgebung ist dadurch charakterisiert, dass einfache Absichten mit gleichermaßen einfachem Aufwand realisiert werden können. Falls Feature nicht mittels dezidiertem Parameter konfiguriert werden kann, wie groß ist DIY-Aufwand?
-  + Negativbeispiel Windows 
-    * VDesktop Wechsel braucht 100 Zeilen AHK Code.
-    * Keine Automatische Paketverwaltung
-    * *Downloader*-Programme
-
-```{r}
-my.df <- bind_rows(tibble(labels=mnist$test$y), 
-                       tibble(labels=mnist$train$y),
-                       .id="Group") %>%
-             mutate(Group=case_when(Group=="1" ~ "test", TRUE ~ "training")) %>%
-             mutate(Group=factor(Group), labels=as.integer(labels))
-
-    ggplot(my.df) +
-      geom_bar(aes(x=labels, y=..prop.., fill=Group, color=Group), position="dodge") +
-      # must create xlabels manually as I cannot declare labels as factors (bugs). See
-      # https://stackoverflow.com/questions/56360383/geom-bar-changes-behavior-when-variable-is-factor
-      scale_x_continuous(breaks=0:9, labels=as.character(0:9)) +
-      scale_y_continuous(breaks=c()) +
-      labs(x = "", y = "Proportion (rel.)", title = "Distribution of numbers in MNIST") +
-      theme(legend.position=c(0.95, 0.05),
-            legend.justification=c("right","bottom"),
-            legend.background=element_rect(color=1),
-            plot.title=element_text(hjust = 0.5))
+---
+
+```{r init, echo=T}
+
+ library(knitr)
+ library(keras)
+ library(shiny)
+ library(tidyverse)
+
+ # load the mnist data set, normalize and flatten the 28x28 pixmaps and one-hot-encode the labels
+ mnist   <- dataset_mnist()
+ x.train <- array_reshape(mnist$train$x, c(nrow(mnist$train$x), 784)) / 255
+ x.test  <- array_reshape(mnist$test$x, c(nrow(mnist$test$x), 784)) / 255
+ y.train <- to_categorical(mnist$train$y, 10)
+ y.test  <- to_categorical(mnist$test$y, 10)
+
+ # Define method to draw mnist images.
+ draw.pixmap <- function(pixels) {
+
+   y_ <- c()
+   for (ii in 28:1) { y_ <- c(y_, rep(ii, 28)) }
+   ggplot() +
+     geom_raster(aes(x = rep(1:28, 28), y = y_, fill = pixels)) +
+     coord_cartesian(xlim=c(1,28), ylim=c(1,28)) +
+     theme_void() +
+     theme(legend.position="none")
+ }
 ```

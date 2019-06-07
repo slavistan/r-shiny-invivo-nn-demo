@@ -1,0 +1,457 @@
+---
+title: "DaVinci Team Meeting"
+runtime: shiny
+output: xaringan::moon_reader
+---
+
+# Live Machine Learning | In-vivo Neural Networks Demo 
+
+<div align="center">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/2/2d/Vitruvian-Icon-Gray.png" style="height:120px;padding:10px"/>
+  <img src="https://www.js-soft.com/assets/template_img/js-soft.png" style="height:90px;padding:10px"/>
+</div>
+
+---
+
+## Neural Networks Demo | The MNIST Data Set
+
+```{r init, echo=FALSE}
+# 
+# # Setup data, variables and functions
+# Library(knitr)
+# Library(keras)
+# Library(shiny)
+# Library(tidyverse)
+# Mnist <- dataset_mnist()
+#  
+# # Normalize and flatten 28x28 images using row-major layout (which is used by tensorflow)
+# X.train <- array_reshape(mnist$train$x, c(nrow(mnist$train$x), 784)) / 255
+# X.test <- array_reshape(mnist$test$x, c(nrow(mnist$test$x), 784)) / 255
+# 
+# # one-hot-encode labels
+# Y.train <- to_categorical(mnist$train$y, 10)
+# Y.test <- to_categorical(mnist$test$y, 10)
+# 
+# # Define method to draw mnist images.
+# Draw.pixmap <- function(pixels) {
+#                 y_ <- c()
+#                 for (ii in 28:1) { y_ <- c(y_, rep(ii, 28)) }
+#                 ggplot() +
+#                   geom_raster(aes(x = rep(1:28, 28), y = y_, fill = pixels)) +
+#                   coord_cartesian(xlim=c(1,28), ylim=c(1,28)) +
+#                   theme_void() +
+#                   theme(legend.position="none")
+#                 }
+```
+
+---
+
+
+<!-- visualize the MNIST dataset using a shiny app -->
+```{r visualizing-mnist, echo=FALSE, message=FALSE, warning=FALSE}
+# 
+# # Define user interface
+# ui <- fluidPage(
+#   fluidRow(
+#     column(4, offset=2, align="center",
+#       h2("Test Set"),
+#       sliderInput('test.index', label=NULL, min=1, max=10000, value=1000),
+#       strong(textOutput(outputId = 'label.test')),
+#       plotOutput(outputId = 'image.test')
+#     ),
+#     column(4, align="center",
+#       h2("Training Set"),
+#       sliderInput('train.index', label=NULL, min=1, max=60000, value=8400),
+#       strong(textOutput(outputId = 'label.train')),
+#       plotOutput(outputId = 'image.train')
+#     )
+#   )
+# )
+# 
+# # Define reactive outputs
+# server <- function(input, output) {
+# 
+#   # Pixmap of test image
+#   output$image.test <- renderPlot({
+# 
+#     img.out <- draw.pixmap(x.test[input$test.index,])
+# 
+#     # information can be passed explicitly via a list
+#     list(src = img.out)
+#   }, width = 200, height = 200 )
+#   
+#   # Pixmap of training image
+#   output$image.train <- renderPlot({
+# 
+#     draw.pixmap(x.train[input$train.index,])
+#   }, width = 200, height = 200)
+# 
+#   # Label of test image
+#   output$label.test <- renderText({
+# 
+#     return(paste0("Label: ", mnist$test$y[[input$test.index]]))
+#   })
+# 
+#   # Label of training image
+#   output$label.train <- renderText({
+# 
+#     return(paste0("Label: ", mnist$train$y[[input$train.index]]))
+#   })
+# }
+# 
+# # Run the app
+# shinyApp(ui = ui, server = server)
+# 
+```
+
+## Neural Networks Demo | The Multi-Layer Perceptron
+
+<div align="center">
+  ![](https://austingwalters.com/wp-content/uploads/2018/12/mlp.png)
+</div>
+
+## Neural Networks Demo | Training the MLP
+
+<!-- visualize training progress using a shiny app. -->
+```{r visualize-training-history, echo=FALSE, warning=FALSE, message=FALSE}
+# library(gridExtra)
+# library(gghighlight)
+# library(ggrepel)
+# 
+# # Debugging log wrapper
+# debug.log <- function(...) {
+# 
+#   # Green & bold
+#   cat("\033[38;2;0;255;0m", ..., "\033[39;49m")
+# }
+# 
+# # Define user interface
+# ui.training <-
+#   fluidPage(
+#     fluidRow(
+#       column(4, align="center",
+#         sliderInput("epoch.increment", label="Numer of Epochs to Train", value=16, min=1, max=64, step=1),
+#         splitLayout(cellWidths=c("65%", "35%"),
+#           actionButton("reset.button", label="Reset + Run", width="100%"),
+#           actionButton("run.button", label="Run", width="100%")
+#         ),
+#         br(),
+#         splitLayout(
+#           h5("Hidden neurons: ", style="padding-bottom: -10px;"),
+#           numericInput("hl.size", label=NULL, min=1, max=128, step=1, value=3)),
+#         # TODO: Properly concatenate the static prefix and the dynamic counter value
+#         h4(textOutput("epoch.counter")),
+#         br(),
+#         radioButtons("geom.plot.option", label=NULL, choices=list("Point", "Line"), inline=T),
+#         checkboxInput("show.train.acc.option", label="Show training set history", value=T)
+#       ),
+#       column(8, align="center", plotOutput("plot.history")
+#       )
+#     )
+#   )
+# 
+# # define reactive outputs
+# server.training <- function(input, output){
+# 
+#   # define function to (re-)initialize model
+#   initialize_model <- function(hidden = input$hl.size) {
+# 
+#     # set up model layers
+#     model <- keras_model_sequential(name="MNIST Classifier") %>%
+#               layer_dense(units=hidden, activation='relu', input_shape=c(784), name="Hidden-Layer") %>%
+#               layer_dense(units=10, activation='softmax', name="Output-Layer")
+#     # define loss function and optimizer ('compile' the model)
+#     model %>% compile(loss = 'categorical_crossentropy',
+#                       metrics = c('accuracy'),
+#                       optimizer = optimizer_rmsprop())
+# 
+#     return(model)
+#   }
+# 
+#   # define reactive parameters
+#   params = reactiveValues(epoch.counter = 0)
+# 
+#   # define reactive function performing training and returning training history as wide-format tibble.
+#   training_history <- eventReactive(params$epoch.counter, {
+# 
+#     if(params$epoch.counter == 0){
+# 
+#       # we use static variables which are incrementally changed with each function call. Unfortunately R does not have
+#       # function-scope static variables hence we're forced to use globals.
+#       m. <<- initialize_model() # our model
+#       h. <<- tibble()           # training history
+#       epoch.counter.prev. <<- 0 # prev value of the epoch.counter
+# 
+#       return(h.)
+#     }
+# 
+#     # perform trainig. Note that the model is mutated by 'fit()'
+#     fit.result <- fit(m., x.train, y.train,
+#                       initial_epoch = epoch.counter.prev.,
+#                       epochs = params$epoch.counter,
+#                       validation_split = 0.2,
+#                       batch_size = 12000)
+# 
+# 
+#     # append newly gathered values. The column names are deducted automatically
+#     dh <- fit.result$metrics %>% as_tibble
+#     h. <<- bind_rows(h., dh)
+# 
+#     epoch.counter.prev. <<- params$epoch.counter
+# 
+#     return(h.)
+#     # run the actual training within a progress environmente
+#     # withProgress(message = 'Training ...', value = 0, {
+# 
+# 
+#     #   # perform training for the specified number of epochs. We use a loop to obtain explicit control over the
+#     #   # progress of the training.
+#     #   for (ii in 1:epoch.increment){
+# 
+#     #     # run an epoch of training
+#     #     training.hist <- fit(params$model, x.train, y.train,
+#     #                             initial_epoch = current.epoch,
+#     #                             epochs = current.epoch + 1,
+#     #                             batch_size = 10000)
+# 
+# 
+#     #     # display progress bar
+#     #     incProgress(1/epoch.increment, detail = paste0("Training epoch ", ii, "/", epoch.increment))
+#     #   }
+#     # })
+#   })
+# 
+#   # render training history plot
+#   output$plot.history <- renderPlot({
+#     debug.log("output$plot.history called\n")
+# 
+#     # Create explicit dependency to the function performing the model's training. The input format is expected to be
+#     # a wide-format tibble consisting of all the metrics to be displayed.
+#     training.hist <- training_history()
+# 
+#     if(nrow(training.hist) == 0) {
+#       # HACK: Increment epoch count to start training immediately
+#       # TODO: Remove this before deployment
+#       params$epoch.counter <- isolate(params$epoch.counter) + isolate(input$epoch.increment)
+# 
+#       return(ggplot() +
+#                theme(axis.title = element_blank(),
+#                      axis.text  = element_blank(),
+#                      axis.ticks = element_blank()) +
+#                annotate("text", x = 0, y = 0, label = " ", size = 13))
+#     }
+# 
+#     # Create separate dataframes for losses and accuracies
+#     loss.hist <- training.hist %>%
+#       select(contains("loss")) %>%
+#       mutate(Epoch = 1:nrow(training.hist)) %>%
+#       gather(key = "Set", value = "Loss", -Epoch) %>%
+#       mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
+# 
+#     acc.hist <- training.hist %>%
+#       select(contains("acc")) %>%
+#       mutate(Epoch = 1:nrow(training.hist)) %>%
+#       gather(key = "Set", value = "Accuracy", -Epoch) %>%
+#       mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
+# 
+#     # configure plot outputs respecting the user's choices
+#     geom <- ifelse(input$geom.plot.option == "Line", geom_line, geom_point)
+#     loss.plot <- ggplot(loss.hist) +
+#       geom(aes(x = Epoch, y = Loss, color = Set))
+# 
+#     if(input$show.train.acc.option == F) 
+#       acc.hist <- acc.hist %>% filter(Set == "Validation")
+# 
+#     acc.plot <- ggplot(acc.hist, aes(x = Epoch, y = Accuracy)) +
+#       geom(aes(x = Epoch, y = Accuracy, color = Set)) +
+#         scale_y_log10(limits = c(0.01, 1.0),
+#                       labels = function(x) { return(scales::percent(x,suffix="%", accuracy=1)) },
+#                       breaks = c(0.01,0.1,1),
+#                       minor_breaks=c(seq(0.01,0.09,0.01), seq(0.1,1.0,0.1))) +
+#         scale_x_continuous(limits = c(1, NA),
+#                            labels = scales::number,
+#                            breaks = c(1, max(acc.hist$Epoch), seq(10, 100, 10)),
+#                            minor_breaks=1:max(acc.hist$Epoch)) +
+#         labs(title = "Prediction Accuracy") +
+#         theme(
+#               axis.text.y = element_text(face = "plain", size=12, angle = 45, margin = margin(r = 10)),
+#               axis.title.y = element_blank(),
+#               axis.text.x = element_text(size=12),
+#               axis.title.x = element_text(size=14),
+#               plot.title = element_text(size=16, face="bold", hjust=0.5),
+#               legend.text = element_text(size=12, face="italic"),
+#               legend.title = element_text(size=12, face="bold.italic", hjust=0.5),
+#               legend.justification = c(1, 0),
+#               legend.position = c(0.98,0.02),
+#               legend.background = element_rect(fill = "gray98", color = "black", size = 0.1)) +
+#         scale_color_manual(values = c("blue"))
+# 
+#     # display the maximum accuracy
+#     # retrieve maximum accuracy
+#     hist.max <- acc.hist %>%
+#       filter(Set == "Validation") %>%
+#       filter(Accuracy == max(Accuracy)) %>%
+#       select(c(Epoch, Accuracy)) %>%
+#       filter(row_number() == 1)
+# 
+#     hist.max.label <- paste0("Maximum (", scales::percent(hist.max$Accuracy), ")\nat epoch ", hist.max$Epoch)
+#     acc.plot <- acc.plot +
+#       geom_label_repel(data = (acc.hist %>% filter (Set == "Validation") %>%
+#                                mutate(MaxLabel = if_else(Accuracy == max(Accuracy), hist.max.label, ""))), 
+#                        aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = -0.3, arrow = arrow(length = unit(0.02, "npc")),
+#                       label.size = 0.25,)
+# 
+#     if(input$show.train.acc.option)
+#       acc.plot <- acc.plot +
+#         scale_color_manual(values = c("orange", "blue"))
+# 
+#     return(acc.plot)
+#   })
+# 
+#   # render epoch counter
+#   output$epoch.counter <- renderText({
+# 
+#     # Print the current epoch. The value is retrieved from a reactive variable and thus updates by itself. No
+#     # explicit dependency on the button is required.
+#     return(paste0("Epochs trained: ", params$epoch.counter))
+#   })
+# 
+#   # 'reset.button' callback: Reset epoch counter
+#   observeEvent(input$reset.button, {
+#     debug.log("reset.button pressed\n")
+# 
+#     params$epoch.counter = 0
+#   })
+# 
+#   # 'run.button' callback: Increment epoch counter
+#   observeEvent(input$run.button, {
+#     debug.log("run.button pressed\n")
+# 
+#     params$epoch.counter <- params$epoch.counter + input$epoch.increment
+#   })
+# }
+# 
+# # run the app
+# shinyApp(ui = ui.training, server = server.training)
+# 
+```
+
+## Neural Networks Demo | Prediction Errors
+
+<!-- visualize false predictions using a shiny app -->
+```{r visualize-false-predictions, echo=FALSE}
+# 
+# # define user interface
+# ui.predictions <-
+#   fluidPage(
+#     fluidRow(
+#       column(4, align="center",
+#         actionButton('init.button', label="Load Test Set Predictions", width = "100%"),
+#         br(), br(),
+#         actionButton('next.button', label="Next", width = "100%"),
+#         br(), br(),
+#         splitLayout(
+#           strong(textOutput('label')),
+#           em(textOutput('prediction'))
+#         ),
+#         checkboxInput("show.correct.option", "Show Correct Predictions", T),
+#         br(),
+#         plotOutput('image.pixmap')
+#       ),
+#       column(6, offset=1, align="center",
+#         plotOutput('estimates.barchart')
+#       )
+#     )
+#   )
+# 
+# server.predictions <- function(input, output){
+# 
+#   params <- reactiveValues(index=0)
+#   get_prediction_info <- function(model, x, y) {
+# 
+#     df <- tibble(estimates = model %>% predict(x)) # estimates for each class
+#     df$predictions <- df$estimates %>% k_argmax() %>% as.integer # single-digit prediction
+#     df$labels <- y.test %>% k_argmax %>% as.integer
+#     df$index <- 1:length(df$predictions)
+#     df$images <- x
+# 
+#     return(df)
+#   }
+# 
+#   # Pixmap of test image
+#   output$image.pixmap <- renderPlot({
+# 
+#     if(params$index == 0) return()
+# 
+#     return(draw.pixmap(x.test[params$index,]))
+#   }, width = 200, height = 200 )
+# 
+#   # Returns ggplot barchart over estimates for each class 0 - 9
+#   plot_estimates <- function(estimates) {
+# 
+#     result <- 
+#       ggplot() +
+#         geom_col(aes(x = 0:(length(estimates)-1), y = estimates, fill=as.factor(0:(length(estimates)-1))), show.legend = F) +
+#         scale_x_continuous(breaks = 0:9) +
+#         labs(title = "Class Estimates") +
+#         theme(
+#           axis.title.y = element_blank(),
+#           axis.ticks.y = element_blank(),
+#           axis.title.x = element_blank(),
+#           plot.title = element_text(size=16, face="bold", hjust=0.5),
+#           axis.text.y = element_blank(),
+#           axis.text.x = element_text(face = "plain", size=12)
+#         )
+#     return(result)
+#   }
+# 
+#   # next.button callback - increment index
+#   observeEvent(input$next.button, {
+# 
+#     if(input$show.correct.option == F){
+#       sub.df <- PREDICTION.DATA %>%
+#       filter(predictions != labels)
+# 
+#       sub.df <- sub.df %>%
+#         filter(row_number() == sample(nrow(sub.df), 1))
+# 
+#       print(sub.df)
+#       params$index <- sub.df$index[1]
+#     }
+#     else {
+#       sub.df <- PREDICTION.DATA %>% 
+#         filter(row_number() == sample(nrow(PREDICTION.DATA), 1))
+#       params$index <- sub.df$index[1]
+#       print(sub.df)
+#     }
+#     debug.log("new index = ", params$index, "\n")
+#   })
+# 
+#   # init.button callback - load prediction data into reactive value
+#   observeEvent(input$init.button, {
+# 
+#     PREDICTION.DATA <<- get_prediction_info(m., x.test, y.test) 
+#     params$index <- 1
+#   })
+# 
+#   output$label <- renderText({
+# 
+#     return(paste0("Label: ", PREDICTION.DATA$labels[params$index]))
+#   })
+# 
+#   output$prediction <- renderText({
+# 
+#     return(paste0("Prediction: ", PREDICTION.DATA$predictions[params$index]))
+#   })
+# 
+#   # render estimates' barchart
+#   output$estimates.barchart <- renderPlot({
+# 
+#     if(params$index == 0) return()
+#     return(plot_estimates(PREDICTION.DATA$estimates[params$index,]))
+#   })
+# }
+# 
+# # Run the app
+# shinyApp(ui = ui.predictions, server = server.predictions)
+```
