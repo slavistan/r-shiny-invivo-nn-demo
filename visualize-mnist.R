@@ -1,44 +1,29 @@
----
-title: "DaVinci Team Meeting"
-runtime: shiny
-output:
-  xaringan::moon_reader:
-    #css: styles.css
----
-
-# In-vivo Neural Networks Demo
-
-<div align="center">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/2/2d/Vitruvian-Icon-Gray.png" style="height:120px;padding:10px"/>
-  <img src="https://www.js-soft.com/assets/template_img/js-soft.png" style="height:90px;padding:10px"/>
-</div>
-
----
-
-```{r init, echo=F, warning=F, message=F}
-
-library(knitr)
 library(keras)
 library(shiny)
 library(tidyverse)
-
-# load the mnist data set, normalize and flatten the 28x28 pixmaps and one-hot-encode the labels
+ 
+# Load MNIST dataset Normalize and flatten 28x28 images using row-major layout (which is used by tensorflow).
+# Also normalize the grayscale values into [0; 1] and one-hot-encode the labels.
 mnist   <- dataset_mnist()
 x.train <- array_reshape(mnist$train$x, c(nrow(mnist$train$x), 784)) / 255
 x.test  <- array_reshape(mnist$test$x, c(nrow(mnist$test$x), 784)) / 255
 y.train <- to_categorical(mnist$train$y, 10)
 y.test  <- to_categorical(mnist$test$y, 10)
 
-# Define method to draw mnist images.
-draw.pixmap <- function(pixels) {
+# Returns ggplot-heatmap from a row-major 1D vector. Kept generic enough to plot arbitrary 2D heatmaps, since ggplot
+# does not have any heatmap geoms and 'image()' rotates the image for no healthy reason.
+plot_heatmap <- function(data, nrow = 1, ncol = length(data)) {
 
-y_ <- c()
-for (ii in 28:1) { y_ <- c(y_, rep(ii, 28)) }
-ggplot() +
-  geom_raster(aes(x = rep(1:28, 28), y = y_, fill = pixels)) +
-  coord_cartesian(xlim=c(1,28), ylim=c(1,28)) +
-  theme_void() +
-  theme(legend.position="none")
+  X = rep(1:ncol, times = nrow) # X = 123123123
+  Y = rep(1:nrow, each  = ncol) # Y = 111222333
+
+  heat.map <- ggplot()                                    +
+    geom_raster(aes(x = X, y = Y, fill = data))           +
+    coord_cartesian(xlim = c(1, nrow), ylim = c(1, nrow)) +
+    theme_void()                                          +
+    theme(legend.position="none")
+
+  return(heat.map)
 }
 
 # Define user interface
@@ -65,16 +50,16 @@ server <- function(input, output) {
   # Pixmap of test image
   output$image.test <- renderPlot({
 
-    img.out <- draw.pixmap(x.test[input$test.index,])
+    img.out <- plot_heatmap(x.test[input$test.index,])
 
     # information can be passed explicitly via a list
     list(src = img.out)
   }, width = 200, height = 200 )
-
+  
   # Pixmap of training image
   output$image.train <- renderPlot({
 
-    draw.pixmap(x.train[input$train.index,])
+    plot_heatmap(x.train[input$train.index,])
   }, width = 200, height = 200)
 
   # Label of test image
@@ -91,6 +76,4 @@ server <- function(input, output) {
 }
 
 # Run the app
-shinyApp(ui = ui, server = server)
-
-```
+app <- shinyApp(ui = ui, server = server)
