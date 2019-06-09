@@ -153,53 +153,53 @@ output: xaringan::moon_reader
  # define reactive outputs
  server.training <- function(input, output){
  
-   # define function to (re-)initialize model
-   initialize_model <- function(hidden = input$hl.size) {
- 
-     # set up model layers
-     model <- keras_model_sequential(name="MNIST Classifier") %>%
-               layer_dense(units=hidden, activation='relu', input_shape=c(784), name="Hidden-Layer") %>%
-               layer_dense(units=10, activation='softmax', name="Output-Layer")
-     # define loss function and optimizer ('compile' the model)
-     model %>% compile(loss = 'categorical_crossentropy',
-                       metrics = c('accuracy'),
-                       optimizer = optimizer_rmsprop())
- 
-     return(model)
-   }
+#    # define function to (re-)initialize model
+#    initialize_model <- function(hidden = input$hl.size) {
+#  
+#      # set up model layers
+#      model <- keras_model_sequential(name="MNIST Classifier") %>%
+#                layer_dense(units=hidden, activation='relu', input_shape=c(784), name="Hidden-Layer") %>%
+#                layer_dense(units=10, activation='softmax', name="Output-Layer")
+#      # define loss function and optimizer ('compile' the model)
+#      model %>% compile(loss = 'categorical_crossentropy',
+#                        metrics = c('accuracy'),
+#                        optimizer = optimizer_rmsprop())
+#  
+#      return(model)
+#    }
  
    # define reactive parameters
-   params = reactiveValues(epoch.counter = 0)
- 
-   # define reactive function performing training and returning training history as wide-format tibble.
-   training_history <- eventReactive(params$epoch.counter, {
- 
-     if(params$epoch.counter == 0){
- 
-       # we use static variables which are incrementally changed with each function call. Unfortunately R does not have
-       # function-scope static variables hence we're forced to use globals.
-       m. <<- initialize_model() # our model
-       h. <<- tibble()           # training history
-       epoch.counter.prev. <<- 0 # prev value of the epoch.counter
- 
-       return(h.)
-     }
- 
-     # perform trainig. Note that the model is mutated by 'fit()'
-     fit.result <- fit(m., x.train, y.train,
-                       initial_epoch = epoch.counter.prev.,
-                       epochs = params$epoch.counter,
-                       validation_split = 0.2,
-                       batch_size = 12000)
- 
- 
-     # append newly gathered values. The column names are deducted automatically
-     dh <- fit.result$metrics %>% as_tibble
-     h. <<- bind_rows(h., dh)
- 
-     epoch.counter.prev. <<- params$epoch.counter
- 
-     return(h.)
+#    params = reactiveValues(epoch.counter = 0)
+#  
+#    # define reactive function performing training and returning training history as wide-format tibble.
+#    training_history <- eventReactive(params$epoch.counter, {
+#  
+#      if(params$epoch.counter == 0){
+#  
+#        # we use static variables which are incrementally changed with each function call. Unfortunately R does not have
+#        # function-scope static variables hence we're forced to use globals.
+#        m. <<- initialize_model() # our model
+#        h. <<- tibble()           # training history
+#        epoch.counter.prev. <<- 0 # prev value of the epoch.counter
+#  
+#        return(h.)
+#      }
+#  
+#      # perform trainig. Note that the model is mutated by 'fit()'
+#      fit.result <- fit(m., x.train, y.train,
+#                        initial_epoch = epoch.counter.prev.,
+#                        epochs = params$epoch.counter,
+#                        validation_split = 0.2,
+#                        batch_size = 12000)
+#  
+#  
+#      # append newly gathered values. The column names are deducted automatically
+#      dh <- fit.result$metrics %>% as_tibble
+#      h. <<- bind_rows(h., dh)
+#  
+#      epoch.counter.prev. <<- params$epoch.counter
+#  
+#      return(h.)
      # run the actual training within a progress environmente
      # withProgress(message = 'Training ...', value = 0, {
  
@@ -222,114 +222,114 @@ output: xaringan::moon_reader
    })
  
    # render training history plot
-   output$plot.history <- renderPlot({
-     debug.log("output$plot.history called\n")
+#   output$plot.history <- renderPlot({
+#     debug.log("output$plot.history called\n")
+# 
+#     # Create explicit dependency to the function performing the model's training. The input format is expected to be
+#     # a wide-format tibble consisting of all the metrics to be displayed.
+#     training.hist <- training_history()
+# 
+#     if(nrow(training.hist) == 0) {
+#       # HACK: Increment epoch count to start training immediately
+#       # TODO: Remove this before deployment
+#       params$epoch.counter <- isolate(params$epoch.counter) + isolate(input$epoch.increment)
+# 
+#       return(ggplot() +
+#                theme(axis.title = element_blank(),
+#                      axis.text  = element_blank(),
+#                      axis.ticks = element_blank()) +
+#                annotate("text", x = 0, y = 0, label = " ", size = 13))
+#     }
+# 
+#     # Create separate dataframes for losses and accuracies
+#     loss.hist <- training.hist %>%
+#       select(contains("loss")) %>%
+#       mutate(Epoch = 1:nrow(training.hist)) %>%
+#       gather(key = "Set", value = "Loss", -Epoch) %>%
+#       mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
+# 
+#     acc.hist <- training.hist %>%
+#       select(contains("acc")) %>%
+#       mutate(Epoch = 1:nrow(training.hist)) %>%
+#       gather(key = "Set", value = "Accuracy", -Epoch) %>%
+#       mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
+# 
+#     # configure plot outputs respecting the user's choices
+#     geom <- ifelse(input$geom.plot.option == "Line", geom_line, geom_point)
+#     loss.plot <- ggplot(loss.hist) +
+#       geom(aes(x = Epoch, y = Loss, color = Set))
+# 
+#     if(input$show.train.acc.option == F) 
+#       acc.hist <- acc.hist %>% filter(Set == "Validation")
+# 
+#     acc.plot <- ggplot(acc.hist, aes(x = Epoch, y = Accuracy)) +
+#       geom(aes(x = Epoch, y = Accuracy, color = Set)) +
+#         scale_y_log10(limits = c(0.01, 1.0),
+#                       labels = function(x) { return(scales::percent(x,suffix="%", accuracy=1)) },
+#                       breaks = c(0.01,0.1,1),
+#                       minor_breaks=c(seq(0.01,0.09,0.01), seq(0.1,1.0,0.1))) +
+#         scale_x_continuous(limits = c(1, NA),
+#                            labels = scales::number,
+#                            breaks = c(1, max(acc.hist$Epoch), seq(10, 100, 10)),
+#                            minor_breaks=1:max(acc.hist$Epoch)) +
+#         labs(title = "Prediction Accuracy") +
+#         theme(
+#               axis.text.y = element_text(face = "plain", size=12, angle = 45, margin = margin(r = 10)),
+#               axis.title.y = element_blank(),
+#               axis.text.x = element_text(size=12),
+#               axis.title.x = element_text(size=14),
+#               plot.title = element_text(size=16, face="bold", hjust=0.5),
+#               legend.text = element_text(size=12, face="italic"),
+#               legend.title = element_text(size=12, face="bold.italic", hjust=0.5),
+#               legend.justification = c(1, 0),
+#               legend.position = c(0.98,0.02),
+#               legend.background = element_rect(fill = "gray98", color = "black", size = 0.1)) +
+#         scale_color_manual(values = c("blue"))
+# 
+#     # display the maximum accuracy
+#     # retrieve maximum accuracy
+#     hist.max <- acc.hist %>%
+#       filter(Set == "Validation") %>%
+#       filter(Accuracy == max(Accuracy)) %>%
+#       select(c(Epoch, Accuracy)) %>%
+#       filter(row_number() == 1)
+# 
+#     hist.max.label <- paste0("Maximum (", scales::percent(hist.max$Accuracy), ")\nat epoch ", hist.max$Epoch)
+#     acc.plot <- acc.plot +
+#       geom_label_repel(data = (acc.hist %>% filter (Set == "Validation") %>%
+#                                mutate(MaxLabel = if_else(Accuracy == max(Accuracy), hist.max.label, ""))), 
+#                        aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = -0.3, arrow = arrow(length = unit(0.02, "npc")),
+#                       label.size = 0.25,)
+# 
+#     if(input$show.train.acc.option)
+#       acc.plot <- acc.plot +
+#         scale_color_manual(values = c("orange", "blue"))
+# 
+#     return(acc.plot)
+#   })
  
-     # Create explicit dependency to the function performing the model's training. The input format is expected to be
-     # a wide-format tibble consisting of all the metrics to be displayed.
-     training.hist <- training_history()
- 
-     if(nrow(training.hist) == 0) {
-       # HACK: Increment epoch count to start training immediately
-       # TODO: Remove this before deployment
-       params$epoch.counter <- isolate(params$epoch.counter) + isolate(input$epoch.increment)
- 
-       return(ggplot() +
-                theme(axis.title = element_blank(),
-                      axis.text  = element_blank(),
-                      axis.ticks = element_blank()) +
-                annotate("text", x = 0, y = 0, label = " ", size = 13))
-     }
- 
-     # Create separate dataframes for losses and accuracies
-     loss.hist <- training.hist %>%
-       select(contains("loss")) %>%
-       mutate(Epoch = 1:nrow(training.hist)) %>%
-       gather(key = "Set", value = "Loss", -Epoch) %>%
-       mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
- 
-     acc.hist <- training.hist %>%
-       select(contains("acc")) %>%
-       mutate(Epoch = 1:nrow(training.hist)) %>%
-       gather(key = "Set", value = "Accuracy", -Epoch) %>%
-       mutate(Set = case_when(grepl("val", Set) ~ "Validation", TRUE ~ "Training"))
- 
-     # configure plot outputs respecting the user's choices
-     geom <- ifelse(input$geom.plot.option == "Line", geom_line, geom_point)
-     loss.plot <- ggplot(loss.hist) +
-       geom(aes(x = Epoch, y = Loss, color = Set))
- 
-     if(input$show.train.acc.option == F) 
-       acc.hist <- acc.hist %>% filter(Set == "Validation")
- 
-     acc.plot <- ggplot(acc.hist, aes(x = Epoch, y = Accuracy)) +
-       geom(aes(x = Epoch, y = Accuracy, color = Set)) +
-         scale_y_log10(limits = c(0.01, 1.0),
-                       labels = function(x) { return(scales::percent(x,suffix="%", accuracy=1)) },
-                       breaks = c(0.01,0.1,1),
-                       minor_breaks=c(seq(0.01,0.09,0.01), seq(0.1,1.0,0.1))) +
-         scale_x_continuous(limits = c(1, NA),
-                            labels = scales::number,
-                            breaks = c(1, max(acc.hist$Epoch), seq(10, 100, 10)),
-                            minor_breaks=1:max(acc.hist$Epoch)) +
-         labs(title = "Prediction Accuracy") +
-         theme(
-               axis.text.y = element_text(face = "plain", size=12, angle = 45, margin = margin(r = 10)),
-               axis.title.y = element_blank(),
-               axis.text.x = element_text(size=12),
-               axis.title.x = element_text(size=14),
-               plot.title = element_text(size=16, face="bold", hjust=0.5),
-               legend.text = element_text(size=12, face="italic"),
-               legend.title = element_text(size=12, face="bold.italic", hjust=0.5),
-               legend.justification = c(1, 0),
-               legend.position = c(0.98,0.02),
-               legend.background = element_rect(fill = "gray98", color = "black", size = 0.1)) +
-         scale_color_manual(values = c("blue"))
- 
-     # display the maximum accuracy
-     # retrieve maximum accuracy
-     hist.max <- acc.hist %>%
-       filter(Set == "Validation") %>%
-       filter(Accuracy == max(Accuracy)) %>%
-       select(c(Epoch, Accuracy)) %>%
-       filter(row_number() == 1)
- 
-     hist.max.label <- paste0("Maximum (", scales::percent(hist.max$Accuracy), ")\nat epoch ", hist.max$Epoch)
-     acc.plot <- acc.plot +
-       geom_label_repel(data = (acc.hist %>% filter (Set == "Validation") %>%
-                                mutate(MaxLabel = if_else(Accuracy == max(Accuracy), hist.max.label, ""))), 
-                        aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = -0.3, arrow = arrow(length = unit(0.02, "npc")),
-                       label.size = 0.25,)
- 
-     if(input$show.train.acc.option)
-       acc.plot <- acc.plot +
-         scale_color_manual(values = c("orange", "blue"))
- 
-     return(acc.plot)
-   })
- 
-   # render epoch counter
-   output$epoch.counter <- renderText({
- 
-     # Print the current epoch. The value is retrieved from a reactive variable and thus updates by itself. No
-     # explicit dependency on the button is required.
-     return(paste0("Epochs trained: ", params$epoch.counter))
-   })
- 
-   # 'reset.button' callback: Reset epoch counter
-   observeEvent(input$reset.button, {
-     debug.log("reset.button pressed\n")
- 
-     params$epoch.counter = 0
-   })
- 
-   # 'run.button' callback: Increment epoch counter
-   observeEvent(input$run.button, {
-     debug.log("run.button pressed\n")
- 
-     params$epoch.counter <- params$epoch.counter + input$epoch.increment
-   })
- }
+#    # render epoch counter
+#    output$epoch.counter <- renderText({
+#  
+#      # Print the current epoch. The value is retrieved from a reactive variable and thus updates by itself. No
+#      # explicit dependency on the button is required.
+#      return(paste0("Epochs trained: ", params$epoch.counter))
+#    })
+#  
+#    # 'reset.button' callback: Reset epoch counter
+#    observeEvent(input$reset.button, {
+#      debug.log("reset.button pressed\n")
+#  
+#      params$epoch.counter = 0
+#    })
+#  
+#    # 'run.button' callback: Increment epoch counter
+#    observeEvent(input$run.button, {
+#      debug.log("run.button pressed\n")
+#  
+#      params$epoch.counter <- params$epoch.counter + input$epoch.increment
+#    })
+#  }
  
  # run the app
  shinyApp(ui = ui.training, server = server.training)

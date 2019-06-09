@@ -5,11 +5,13 @@ library(tidyverse)
  
 # Load MNIST dataset, normalize and flatten 28x28 images using row-major layout (which is used by tensorflow).
 # Also normalize the grayscale values into [0; 1] and one-hot-encode the labels.
-mnist   <- dataset_mnist()
-x.train <- array_reshape(mnist$train$x, c(nrow(mnist$train$x), 784)) / 255
-x.test  <- array_reshape(mnist$test$x, c(nrow(mnist$test$x), 784)) / 255
-y.train <- to_categorical(mnist$train$y, 10)
-y.test  <- to_categorical(mnist$test$y, 10)
+mnist <- dataset_mnist()
+MNIST <- list(x.train       = array_reshape(mnist$train$x, c(nrow(mnist$train$x), 784)) / 255,
+              x.test        = array_reshape(mnist$test$x, c(nrow(mnist$test$x), 784)) / 255,
+              y.train       = to_categorical(mnist$train$y, 10),
+              y.test        = to_categorical(mnist$test$y, 10),
+              y.train.digit = mnist$train$y, # keep the single-digit labels for convenience
+              y.test.digit  = mnist$test$y)
 
 # Return ggplot-heatmap from a row-major 1D vector.
 # 
@@ -29,6 +31,81 @@ plot_heatmap <- function(data, nrow = 1, ncol = length(data)) {
   return(heat.map)
 }
 
+# Return ggplot of training history. Expects a wide-format tibble consisting of all metrics to be displayed.
+# 
+# The x-axis displays the epoch (the integral index of each observation which need not be provided). The y-axis
+# shows the numerical value of each metric. The metric type is mapped to the color aesthetic (one color per
+# column in the input tibble).
+plot_training_history <- function(data,             # wide-format tibble
+                                  geom = geom_line) # any geom compatible with the x, y and color aesthetics
+{
+  if(nrow(data) == 0) {
+    return(ggplot)
+  }
+
+  plot.data <- data %>%
+    mutate(Epoch = row_number()) %>%
+    gather(-Epoch, key = 'Metric', value = 'Value')
+
+  history.plot <- ggplot(plot.data) +
+    geom(aes(x = Epoch, y = Value, color = Metric))
+
+  return(history.plot)
+#    
+#        scale_y_log10(limits = c(0.01, 1.0),
+#                      labels = function(x) { return(scales::percent(x,suffix="%", accuracy=1)) },
+#                      breaks = c(0.01,0.1,1),
+#                      minor_breaks=c(seq(0.01,0.09,0.01), seq(0.1,1.0,0.1))) +
+#        scale_x_continuous(limits = c(1, NA),
+#                           labels = scales::number,
+#                           breaks = c(1, max(acc.hist$Epoch), seq(10, 100, 10)),
+#                           minor_breaks=1:max(acc.hist$Epoch)) +
+#        labs(title = "Prediction Accuracy") +
+#        theme(
+#              axis.text.y = element_text(face = "plain", size=12, angle = 45, margin = margin(r = 10)),
+#              axis.title.y = element_blank(),
+#              axis.text.x = element_text(size=12),
+#              axis.title.x = element_text(size=14),
+#              plot.title = element_text(size=16, face="bold", hjust=0.5),
+#              legend.text = element_text(size=12, face="italic"),
+#              legend.title = element_text(size=12, face="bold.italic", hjust=0.5),
+#              legend.justification = c(1, 0),
+#              legend.position = c(0.98,0.02),
+#              legend.background = element_rect(fill = "gray98", color = "black", size = 0.1)) +
+#        scale_color_manual(values = c("blue"))
+#
+#    # display the maximum accuracy
+#    # retrieve maximum accuracy
+#    hist.max <- acc.hist %>%
+#      filter(Set == "Validation") %>%
+#      filter(Accuracy == max(Accuracy)) %>%
+#      select(c(Epoch, Accuracy)) %>%
+#      filter(row_number() == 1)
+#
+#    hist.max.label <- paste0("Maximum (", scales::percent(hist.max$Accuracy), ")\nat epoch ", hist.max$Epoch)
+#    acc.plot <- acc.plot +
+#      geom_label_repel(data = (acc.hist %>% filter (Set == "Validation") %>%
+#                               mutate(MaxLabel = if_else(Accuracy == max(Accuracy), hist.max.label, ""))), 
+#                       aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = -0.3, arrow = arrow(length = unit(0.02, "npc")),
+#                      label.size = 0.25,)
+#
+#    if(input$show.train.acc.option)
+#      acc.plot <- acc.plot +
+#        scale_color_manual(values = c("orange", "blue"))
+#
+#    return(acc.plot)
+
+}
+
+# Return indices of false predictions
+#
+# The model's predictions of 'x' are argmax'ed and compaired against y.
+get_false_predictions <- function(model, x, y) {
+
+  predicted.digits <- model %>% predict(x) %>% k_argmax %>% as.integer
+  return(which(predicted.digits != y))
+}
+
 # Return untrained Multi-Layer Perceptron Keras model with a single hidden layer.
 #
 # The number of hidden neurons is parameterized.
@@ -44,6 +121,28 @@ initialize_model <- function(input.size = 784, hidden.units = 16, output.size = 
   return(model)
 }
 
+# Returns ggplot barchart over estimates for each class 0 - 9
+plot_digit_estimates <- function(estimates) {
+
+  estimates <- as.vector(estimates)
+  if(length(estimates) == 0) return(ggplot())
+
+  bar.chart <- 
+    ggplot() +
+      geom_col(aes(x = 0:(length(estimates)-1), y = estimates, fill=as.factor(0:(length(estimates)-1))), show.legend = F) +
+      scale_x_continuous(breaks = 0:9) +
+      labs(title = "Class Estimates") +
+      theme(
+        axis.title.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.x = element_blank(),
+        plot.title = element_text(size=16, face="bold", hjust=0.5),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(face = "plain", size=12)
+      )
+  return(bar.chart)
+}
+
 ### Define the app's user interface
 ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
   fluidRow(
@@ -51,13 +150,13 @@ ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
       h2("Test Set"),
       sliderInput('test.index', label=NULL, min=1, max=10000, value=1000),
       strong(textOutput(outputId = 'label.test')),
-      plotOutput(outputId = 'image.test')
+      plotOutput(outputId = 'test.image.plot')
     ),
     column(4, align = "center",
       h2("Training Set"),
       sliderInput('train.index', label=NULL, min=1, max=60000, value=8400),
       strong(textOutput(outputId = 'label.train')),
-      plotOutput(outputId = 'image.train')
+      plotOutput(outputId = 'training.image.plot')
     )
   ),
   fluidRow(
@@ -78,7 +177,25 @@ ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
       checkboxInput("show.train.acc.option", label="Show training set history", value=T)
     ),
     column(8, align="center",
-      plotOutput("plot.history")
+      plotOutput("training.history.plot")
+    )
+  ),
+  fluidRow(
+    column(4, align="center",
+      actionButton('init.button', label="Load Test Set Predictions", width = "100%"),
+      br(), br(),
+      uiOutput('false.prediction.slider'),
+      br(), br(),
+      splitLayout(
+        strong(textOutput('label')),
+        em(textOutput('prediction'))
+      ),
+      checkboxInput("show.correct.option", "Show Correct Predictions", T),
+      br(),
+      plotOutput('image.pixmap')
+    ),
+    column(6, offset=1, align="center",
+      plotOutput('estimates.barchart')
     )
   )
 )
@@ -86,28 +203,136 @@ ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
 ### Define the app's reactive outputs, i.e. the 'server'
 server <- function(input, output) {
 
-  # Pixmap of test image
-  output$image.test <- renderPlot({
+  # define reactive parameters and their dependent variables
+  params = reactiveValues(TRAINING.HISTORY = tibble(),
+                          MODEL = initialize_model())
+  EPOCH.COUNTER <- reactive({
 
-   return(plot_heatmap(x.test[input$test.index,], nrow = 28, ncol = 28))
+    cat("epoch counter updated\n")
+    return(nrow(params$TRAINING.HISTORY))
+  }) # mirrors the height of the training dataframe
+
+  FALSE.PREDICTIONS <- reactive({
+    # BUG: dependency on the model is not captured (this reactive environment is not executed when learning and
+    # FALSE.PREDICTIoNS and FALSE.PRE). Use an explicit dependency on TRAINING.HISTORY as a workaround for now.
+    params$TRAINING.HISTORY
+
+    return(get_false_predictions(params$MODEL, MNIST$x.test, MNIST$y.test.digit) )
   })
-  
-  # Pixmap of training image
-  output$image.train <- renderPlot({
 
-    return(plot_heatmap(x.train[input$train.index,], nrow = 28, ncol = 28))
+  # Pixmap of test image
+  output$test.image.plot <- renderPlot({
+
+   return(plot_heatmap(MNIST$x.test[input$test.index,], nrow = 28, ncol = 28))
+  })
+
+  # Pixmap of training image
+  output$training.image.plot <- renderPlot({
+
+    return(plot_heatmap(MNIST$x.train[input$train.index,], nrow = 28, ncol = 28))
   })
 
   # Label of test image
   output$label.test <- renderText({
 
-    return(paste0("Label: ", mnist$test$y[[input$test.index]]))
+    return(paste0("Label: ", MNIST$y.test.digit[[input$test.index]]))
   })
 
   # Label of training image
   output$label.train <- renderText({
 
-    return(paste0("Label: ", mnist$train$y[[input$train.index]]))
+    return(paste0("Label: ", MNIST$y.train[[input$train.index]]))
+  })
+
+  # render epoch counter
+  output$epoch.counter <- renderText({
+
+    return(paste0("Epochs trained: ", EPOCH.COUNTER()))
+  })
+
+  # render training history plot
+  output$training.history.plot <- renderPlot({
+
+    return(plot_training_history(params$TRAINING.HISTORY))
+  })
+
+  # 'reset.button' callback: Reset the model.
+  observeEvent(input$reset.button, {
+
+    params$MODEL <- initialize_model()
+    params$TRAINING.HISTORY <- tibble()
+  })
+
+  # 'run.button' callback: Perform training.
+  observeEvent(input$run.button, {
+
+    fit.result <- fit(params$MODEL, MNIST$x.train, MNIST$y.train,
+                      initial_epoch = EPOCH.COUNTER(),
+                      epochs = EPOCH.COUNTER() + input$epoch.increment,
+                      validation_split = 0.2,
+                      batch_size = 12000)
+
+    # append newly gathered values. The column names are deduced automatically
+    delta <- fit.result$metrics %>% as_tibble
+    params$TRAINING.HISTORY <- bind_rows(params$TRAINING.HISTORY, delta)
+  })
+
+# 
+#   # init.button callback - load prediction data into reactive value
+#   observeEvent(input$init.button, {
+# 
+#     PREDICTION.DATA <<- get_prediction_info(m., x.test, y.test) 
+#     params$index <- 1
+#   })
+# 
+#    output$label <- renderText({
+#  
+#      return(paste0("Label: ", PREDICTION.DATA()$labels[params$index]))
+#    })
+#  
+  output$prediction <- renderText({
+
+    if(length(input$prediction.slider) == 0) { # catch uninitialized value
+      estimates <- vector(mode = 'numeric', 10)
+    }
+    else {
+      estimates <- params$MODEL %>% predict(MNIST$x.test[input$prediction.slider, ] %>% matrix(nrow=1))
+    }
+
+    predicted.digit <- estimates %>% k_argmax %>% as.integer
+    return(paste0("Prediction: ", predicted.digit))
+  })
+
+  output$label <- renderText({
+
+    index <- FALSE.PREDICTIONS()[input$prediction.slider]
+    return(paste0("Label: ", MNIST$y.test.digit[index])
+  })
+
+  output$false.prediction.slider <- renderUI({
+
+      sliderInput('prediction.slider', label="False Prediction", min=1, max=length(FALSE.PREDICTIONS()), value=1)
+  })
+ 
+  # render estimates' barchart
+  output$estimates.barchart <- renderPlot({
+
+    index <- FALSE.PREDICTIONS()[input$prediction.slider]
+
+    if(length(input$prediction.slider) == 0) { # catch uninitialized value
+      estimates <- vector(mode = 'numeric', 10)
+    }
+    else {
+      estimates <- params$MODEL %>% predict(MNIST$x.test[index, ] %>% matrix(nrow=1))
+    }
+    return(plot_digit_estimates(estimates))
+  })
+
+  output$image.pixmap <- renderPlot({
+
+    index <- FALSE.PREDICTIONS()[input$prediction.slider]
+
+    return(paste0("Label: ", MNIST$y.test.digit[index]))
   })
 }
 
