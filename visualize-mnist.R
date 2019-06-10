@@ -1,3 +1,4 @@
+# TODO: Remove reactiveValues and use reactiveVal for unified naming
 library(keras)
 library(shiny)
 library(ggrepel)
@@ -19,9 +20,8 @@ MNIST <- list(x.train       = array_reshape(mnist$train$x, c(nrow(mnist$train$x)
 # the image for no healthy reason. Might be reused at some point.
 plot_heatmap <- function(data, nrow = 1, ncol = length(data)) {
 
-  X = rep(1:ncol, times = nrow) # X = 123123123
-  Y = rep(1:nrow, each  = ncol) # Y = 111222333
-
+  X = rep(1:nrow, times  = ncol)
+  Y = rep(ncol:1, each = nrow)
   heat.map <- ggplot()                                    +
     geom_raster(aes(x = X, y = Y, fill = data))           +
     coord_cartesian(xlim = c(1, nrow), ylim = c(1, nrow)) +
@@ -212,12 +212,18 @@ server <- function(input, output) {
     return(nrow(params$TRAINING.HISTORY))
   }) # mirrors the height of the training dataframe
 
+
   FALSE.PREDICTIONS <- reactive({
     # BUG: dependency on the model is not captured (this reactive environment is not executed when learning and
     # FALSE.PREDICTIoNS and FALSE.PRE). Use an explicit dependency on TRAINING.HISTORY as a workaround for now.
     params$TRAINING.HISTORY
 
     return(get_false_predictions(params$MODEL, MNIST$x.test, MNIST$y.test.digit) )
+  })
+
+  FALSE.PREDICTIONS.INDEX <- reactive({
+
+    return(FALSE.PREDICTIONS()[input$prediction.slider])
   })
 
   # Pixmap of test image
@@ -277,62 +283,41 @@ server <- function(input, output) {
     params$TRAINING.HISTORY <- bind_rows(params$TRAINING.HISTORY, delta)
   })
 
-# 
-#   # init.button callback - load prediction data into reactive value
-#   observeEvent(input$init.button, {
-# 
-#     PREDICTION.DATA <<- get_prediction_info(m., x.test, y.test) 
-#     params$index <- 1
-#   })
-# 
-#    output$label <- renderText({
-#  
-#      return(paste0("Label: ", PREDICTION.DATA()$labels[params$index]))
-#    })
-#  
   output$prediction <- renderText({
 
-    if(length(input$prediction.slider) == 0) { # catch uninitialized value
-      estimates <- vector(mode = 'numeric', 10)
-    }
-    else {
-      estimates <- params$MODEL %>% predict(MNIST$x.test[input$prediction.slider, ] %>% matrix(nrow=1))
-    }
+    if(length(FALSE.PREDICTIONS.INDEX()) == 0) return("") # catch uninitialized value
 
+    estimates <- params$MODEL %>% predict(MNIST$x.test[FALSE.PREDICTIONS.INDEX(), ] %>% matrix(nrow=1))
     predicted.digit <- estimates %>% k_argmax %>% as.integer
     return(paste0("Prediction: ", predicted.digit))
   })
 
   output$label <- renderText({
 
-    index <- FALSE.PREDICTIONS()[input$prediction.slider]
-    return(paste0("Label: ", MNIST$y.test.digit[index])
+    if(length(FALSE.PREDICTIONS.INDEX()) == 0) return("") # catch uninitialized value
+
+    return(paste0("Label: ", MNIST$y.test.digit[FALSE.PREDICTIONS.INDEX()]))
   })
 
   output$false.prediction.slider <- renderUI({
 
-      sliderInput('prediction.slider', label="False Prediction", min=1, max=length(FALSE.PREDICTIONS()), value=1)
+    sliderInput('prediction.slider', label="False Prediction", min=1, max=length(FALSE.PREDICTIONS()), value=1)
   })
  
   # render estimates' barchart
   output$estimates.barchart <- renderPlot({
 
-    index <- FALSE.PREDICTIONS()[input$prediction.slider]
+    if(length(FALSE.PREDICTIONS.INDEX()) == 0) return("") # catch uninitialized value
 
-    if(length(input$prediction.slider) == 0) { # catch uninitialized value
-      estimates <- vector(mode = 'numeric', 10)
-    }
-    else {
-      estimates <- params$MODEL %>% predict(MNIST$x.test[index, ] %>% matrix(nrow=1))
-    }
+    estimates <- params$MODEL %>% predict(MNIST$x.test[FALSE.PREDICTIONS.INDEX(), ] %>% matrix(nrow=1))
     return(plot_digit_estimates(estimates))
   })
 
   output$image.pixmap <- renderPlot({
 
-    index <- FALSE.PREDICTIONS()[input$prediction.slider]
+    if(length(FALSE.PREDICTIONS.INDEX()) == 0) return("") # catch uninitialized value
 
-    return(paste0("Label: ", MNIST$y.test.digit[index]))
+    return(plot_heatmap(MNIST$x.test[FALSE.PREDICTIONS.INDEX(),], nrow = 28, ncol = 28))
   })
 }
 
