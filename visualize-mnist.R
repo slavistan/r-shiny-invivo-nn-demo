@@ -169,7 +169,7 @@ ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
       br(),
       splitLayout(
         h5("Hidden neurons: ", style="padding-bottom: -10px;"),
-        numericInput("hl.size", label=NULL, min=1, max=128, step=1, value=3)),
+        numericInput("hl.size", label=NULL, min=1, max=128, step=1, value=16)),
       # TODO: Properly concatenate the static prefix and the dynamic counter value
       h4(textOutput("epoch.counter")),
       br(),
@@ -204,21 +204,20 @@ ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
 server <- function(input, output) {
 
   # define reactive parameters and their dependent variables
-  params = reactiveValues(TRAINING.HISTORY = tibble(),
-                          MODEL = initialize_model())
+  TRAINING.HISTORY <- reactiveVal(tibble())
+  MODEL <- reactiveVal(initialize_model())
   EPOCH.COUNTER <- reactive({
 
-    cat("epoch counter updated\n")
-    return(nrow(params$TRAINING.HISTORY))
+    return(nrow(TRAINING.HISTORY()))
   }) # mirrors the height of the training dataframe
 
 
   FALSE.PREDICTIONS <- reactive({
     # BUG: dependency on the model is not captured (this reactive environment is not executed when learning and
     # FALSE.PREDICTIoNS and FALSE.PRE). Use an explicit dependency on TRAINING.HISTORY as a workaround for now.
-    params$TRAINING.HISTORY
+    TRAINING.HISTORY()
 
-    return(get_false_predictions(params$MODEL, MNIST$x.test, MNIST$y.test.digit) )
+    return(get_false_predictions(MODEL(), MNIST$x.test, MNIST$y.test.digit) )
   })
 
   FALSE.PREDICTIONS.INDEX <- reactive({
@@ -259,20 +258,20 @@ server <- function(input, output) {
   # render training history plot
   output$training.history.plot <- renderPlot({
 
-    return(plot_training_history(params$TRAINING.HISTORY))
+    return(plot_training_history(TRAINING.HISTORY()))
   })
 
   # 'reset.button' callback: Reset the model.
   observeEvent(input$reset.button, {
 
-    params$MODEL <- initialize_model()
-    params$TRAINING.HISTORY <- tibble()
+    MODEL(initialize_model())
+    TRAINING.HISTORY(tibble())
   })
 
   # 'run.button' callback: Perform training.
   observeEvent(input$run.button, {
 
-    fit.result <- fit(params$MODEL, MNIST$x.train, MNIST$y.train,
+    fit.result <- fit(MODEL(), MNIST$x.train, MNIST$y.train,
                       initial_epoch = EPOCH.COUNTER(),
                       epochs = EPOCH.COUNTER() + input$epoch.increment,
                       validation_split = 0.2,
@@ -280,14 +279,15 @@ server <- function(input, output) {
 
     # append newly gathered values. The column names are deduced automatically
     delta <- fit.result$metrics %>% as_tibble
-    params$TRAINING.HISTORY <- bind_rows(params$TRAINING.HISTORY, delta)
+
+    TRAINING.HISTORY(bind_rows(TRAINING.HISTORY(), delta))
   })
 
   output$prediction <- renderText({
 
     if(length(FALSE.PREDICTIONS.INDEX()) == 0) return("") # catch uninitialized value
 
-    estimates <- params$MODEL %>% predict(MNIST$x.test[FALSE.PREDICTIONS.INDEX(), ] %>% matrix(nrow=1))
+    estimates <- MODEL() %>% predict(MNIST$x.test[FALSE.PREDICTIONS.INDEX(), ] %>% matrix(nrow=1))
     predicted.digit <- estimates %>% k_argmax %>% as.integer
     return(paste0("Prediction: ", predicted.digit))
   })
@@ -309,7 +309,7 @@ server <- function(input, output) {
 
     if(length(FALSE.PREDICTIONS.INDEX()) == 0) return("") # catch uninitialized value
 
-    estimates <- params$MODEL %>% predict(MNIST$x.test[FALSE.PREDICTIONS.INDEX(), ] %>% matrix(nrow=1))
+    estimates <- MODEL() %>% predict(MNIST$x.test[FALSE.PREDICTIONS.INDEX(), ] %>% matrix(nrow=1))
     return(plot_digit_estimates(estimates))
   })
 
