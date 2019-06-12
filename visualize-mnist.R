@@ -51,50 +51,6 @@ plot_training_history <- function(data,             # wide-format tibble
     geom(aes(x = Epoch, y = Value, color = Metric))
 
   return(history.plot)
-#    
-#        scale_y_log10(limits = c(0.01, 1.0),
-#                      labels = function(x) { return(scales::percent(x,suffix="%", accuracy=1)) },
-#                      breaks = c(0.01,0.1,1),
-#                      minor_breaks=c(seq(0.01,0.09,0.01), seq(0.1,1.0,0.1))) +
-#        scale_x_continuous(limits = c(1, NA),
-#                           labels = scales::number,
-#                           breaks = c(1, max(acc.hist$Epoch), seq(10, 100, 10)),
-#                           minor_breaks=1:max(acc.hist$Epoch)) +
-#        labs(title = "Prediction Accuracy") +
-#        theme(
-#              axis.text.y = element_text(face = "plain", size=12, angle = 45, margin = margin(r = 10)),
-#              axis.title.y = element_blank(),
-#              axis.text.x = element_text(size=12),
-#              axis.title.x = element_text(size=14),
-#              plot.title = element_text(size=16, face="bold", hjust=0.5),
-#              legend.text = element_text(size=12, face="italic"),
-#              legend.title = element_text(size=12, face="bold.italic", hjust=0.5),
-#              legend.justification = c(1, 0),
-#              legend.position = c(0.98,0.02),
-#              legend.background = element_rect(fill = "gray98", color = "black", size = 0.1)) +
-#        scale_color_manual(values = c("blue"))
-#
-#    # display the maximum accuracy
-#    # retrieve maximum accuracy
-#    hist.max <- acc.hist %>%
-#      filter(Set == "Validation") %>%
-#      filter(Accuracy == max(Accuracy)) %>%
-#      select(c(Epoch, Accuracy)) %>%
-#      filter(row_number() == 1)
-#
-#    hist.max.label <- paste0("Maximum (", scales::percent(hist.max$Accuracy), ")\nat epoch ", hist.max$Epoch)
-#    acc.plot <- acc.plot +
-#      geom_label_repel(data = (acc.hist %>% filter (Set == "Validation") %>%
-#                               mutate(MaxLabel = if_else(Accuracy == max(Accuracy), hist.max.label, ""))), 
-#                       aes(x = Epoch, y = Accuracy, label = MaxLabel, color = Set), show.legend = F, inherit.aes = T, nudge_y = -0.3, arrow = arrow(length = unit(0.02, "npc")),
-#                      label.size = 0.25,)
-#
-#    if(input$show.train.acc.option)
-#      acc.plot <- acc.plot +
-#        scale_color_manual(values = c("orange", "blue"))
-#
-#    return(acc.plot)
-
 }
 
 # Return indices of false predictions
