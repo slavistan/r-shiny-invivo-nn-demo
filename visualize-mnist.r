@@ -103,7 +103,7 @@ plot_digit_estimates <- function(estimates) {
 ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
   fluidRow(
     column(4, offset = 2, align="center",
-      h2("Test Set"),
+      h2("Test Sets"),
       sliderInput('test.index', label=NULL, min=1, max=10000, value=1000),
       strong(textOutput(outputId = 'label.test')),
       plotOutput(outputId = 'test.image.plot')
