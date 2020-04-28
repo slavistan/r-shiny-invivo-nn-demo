@@ -15,7 +15,7 @@ MNIST <- list(x.train       = array_reshape(mnist$train$x, c(nrow(mnist$train$x)
               y.test.digit  = mnist$test$y)
 
 # Return ggplot-heatmap from a row-major 1D vector.
-# 
+#
 # Kept generic enough to plot arbitrary 2D heatmaps, since ggplot does not have any heatmap geoms and 'image()' rotates
 # the image for no healthy reason. Might be reused at some point.
 plot_heatmap <- function(data, nrow = 1, ncol = length(data)) {
@@ -32,7 +32,7 @@ plot_heatmap <- function(data, nrow = 1, ncol = length(data)) {
 }
 
 # Return ggplot of training history. Expects a wide-format tibble consisting of all metrics to be displayed.
-# 
+#
 # The x-axis displays the epoch (the integral index of each observation which need not be provided). The y-axis
 # shows the numerical value of each metric. The metric type is mapped to the color aesthetic (one color per
 # column in the input tibble).
@@ -101,20 +101,23 @@ plot_digit_estimates <- function(estimates) {
 
 ### Define the app's user interface
 ui <- fluidPage(title = "Live Neural Networks Demo", width="960px",
-  fluidRow(
-    column(4, offset = 2, align="center",
-      h2("Test Sets"),
-      sliderInput('test.index', label=NULL, min=1, max=10000, value=1000),
-      strong(textOutput(outputId = 'label.test')),
-      plotOutput(outputId = 'test.image.plot')
-    ),
-    column(4, align = "center",
-      h2("Training Set"),
-      sliderInput('train.index', label=NULL, min=1, max=60000, value=8400),
-      strong(textOutput(outputId = 'label.train')),
-      plotOutput(outputId = 'training.image.plot')
-    )
-  )
+
+    tabsetPanel(type = "tabs",
+                tabPanel("Explore"))
+#   fluidRow(
+#     column(4, offset = 2, align="center",
+#       h2("Test Sets"),
+#       sliderInput('test.index', label=NULL, min=1, max=10000, value=1000),
+#       strong(textOutput(outputId = 'label.test')),
+#       plotOutput(outputId = 'test.image.plot')
+#     ),
+#     column(4, align = "center",
+#       h2("Training Set"),
+#       sliderInput('train.index', label=NULL, min=1, max=60000, value=8400),
+#       strong(textOutput(outputId = 'label.train')),
+#       plotOutput(outputId = 'training.image.plot')
+#     )
+#   )
 #   fluidRow(
 #     column(4, align="center",
 #       sliderInput("epoch.increment", label="Numer of Epochs to Train", value=16, min=1, max=64, step=1),
